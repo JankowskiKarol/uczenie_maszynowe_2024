@@ -28,6 +28,8 @@ from sklearn.metrics import confusion_matrix
 
 from sklearn.metrics import accuracy_score
 
+from sklearn.metrics import precision_score, recall_score
+
 
 def prepare_train_dataset(data_flag):
     # Flaga do pobierania danych - ustawiona na True
@@ -273,34 +275,84 @@ def test(split, model, train_dataset, test_dataset, data_flag, BATCH_SIZE):
     # Konkatenacja wyników z każdej iteracji
     all_outputs = torch.cat(all_outputs, dim=0)
 
-        #     # Przygotowanie danych celu i wyników w zależności od zadania
-        #     if task == 'multi-label, binary-class':
-        #         targets = targets.to(torch.float32)  # Przekształcenie do float32 dla binarnej klasyfikacji wieloklasowej
-        #         outputs = outputs.softmax(dim=-1)  # Normalizacja wyników modelu za pomocą softmax
-        #     else:
-        #         targets = targets.squeeze().long()  # Spreasowanie etykiet do postaci tensora liczbowego dla innych zadań
-        #         outputs = outputs.softmax(dim=-1)  # Normalizacja wyników modelu za pomocą softmax
-        #         targets = targets.float().resize_(len(targets), 1)  # Przekształcenie etykiet do postaci tensora
-        
-        #     # Dodanie rzeczywistych etykiet i wyników modelu do odpowiednich tensorów
-        #     y_true = torch.cat((y_true, targets), 0)
-        #     y_score = torch.cat((y_score, outputs), 0)
-
-        # # Konwersja tensorów do numpy arrays
-        # y_true = y_true.numpy()
-        # y_score = y_score.detach().numpy()
-        
-        # # Inicjalizacja ewaluatora dla danego zbioru danych i wybranego podziału (train lub test)
-        # evaluator = Evaluator(data_flag, split)
-        
-        # # Ewaluacja modelu za pomocą ewaluatora i uzyskanie metryk
-        # metrics = evaluator.evaluate(y_score)
-    
-        # # Wypisanie wyników ewaluacji
-        # # print('%s  auc: %.3f  acc:%.3f' % (split, *metrics))
-        # result_text = f'{split} auc: {metrics[0]:.3f} acc: {metrics[1]:.3f}'
-        # return result_text
     return all_outputs
+
+
+
+
+# Do badania sieci neuronowej
+
+# def test(split, model, train_dataset, test_dataset, data_flag, BATCH_SIZE):
+    
+#     # Pobranie informacji o zbiorze danych na podstawie wybranej flagi
+#     info = INFO[data_flag]
+
+#     # Pobranie informacji o zadaniu (task) na podstawie informacji o zbiorze danych
+#     task = info['task']
+    
+#     # Wydrukowanie ilości elementów w zbiorze testowym
+#     print("Number of samples in test dataset:", len(test_dataset))
+
+#     # Tworzenie dataloadera dla zbioru treningowego przy ewaluacji:
+#     # Ten dataloader ma podobną konstrukcję jak poprzedni, ale będzie używany do ewaluacji modelu, więc
+#     # dane nie są przemieszane (shuffle=False).
+#     train_loader_at_eval = data.DataLoader(dataset=train_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
+
+#     # Tworzenie dataloadera dla zbioru testowego:
+#     # Podobnie jak wcześniej, ale dane testowe nie są przemieszane.
+#     test_loader = data.DataLoader(dataset=test_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
+    
+#     # Ustawienie modelu w trybie ewaluacji
+#     model.eval()
+    
+#     # Inicjalizacja pustych tensorów dla prawdziwych etykiet i wyników modelu
+#     y_true = torch.tensor([])  # Tensor przechowujący rzeczywiste etykiety
+#     y_score = torch.tensor([])  # Tensor przechowujący wyniki modelu
+    
+#     # Inicjalizacja list do przechowywania wyników precision i recall dla każdej klasy
+#     precision_list = []
+#     recall_list = []
+
+#     # Wyłączenie obliczania gradientów podczas ewaluacji
+#     with torch.no_grad():
+#         # Pętla przez dane w dataloaderze
+#         for inputs, targets in train_loader_at_eval if split == 'train' else test_loader:
+            
+#             # Przepuszczenie danych przez model w celu uzyskania predykcji
+#             outputs = model(inputs)
+  
+
+#             # Przygotowanie danych celu i wyników w zależności od zadania
+#             if task == 'multi-label, binary-class':
+#                 targets = targets.to(torch.float32)  # Przekształcenie do float32 dla binarnej klasyfikacji wieloklasowej
+#                 outputs = outputs.softmax(dim=-1)  # Normalizacja wyników modelu za pomocą softmax
+#             else:
+#                 targets = targets.squeeze().long()  # Spreasowanie etykiet do postaci tensora liczbowego dla innych zadań
+#                 outputs = outputs.softmax(dim=-1)  # Normalizacja wyników modelu za pomocą softmax
+#                 targets = targets.float().resize_(len(targets), 1)  # Przekształcenie etykiet do postaci tensora
+        
+#             # Dodanie rzeczywistych etykiet i wyników modelu do odpowiednich tensorów
+#             y_true = torch.cat((y_true, targets), 0)
+#             y_score = torch.cat((y_score, outputs), 0)
+
+#             # Obliczenie precision i recall dla każdej klasy
+#             precision = precision_score(targets, outputs.argmax(dim=1), average='weighted', zero_division=0)
+#             recall = recall_score(targets, outputs.argmax(dim=1), average='weighted', zero_division=0)
+#             precision_list.append(precision)
+#             recall_list.append(recall)
+
+#         # Konwersja tensorów do numpy arrays
+#         y_true = y_true.numpy()
+#         y_score = y_score.detach().numpy()
+        
+#         evaluator = Evaluator(data_flag, split)
+#         metrics = evaluator.evaluate(y_score)
+        
+#         # Obliczenie średniego precision i recall dla wszystkich klas
+#         avg_precision = sum(precision_list) / len(precision_list)
+#         avg_recall = sum(recall_list) / len(recall_list)
+        
+#         print ( f'{split} acc: {metrics[1]:.3f} precision: {avg_precision:.3f} recall: {avg_recall:.3f}')
 
 
 
