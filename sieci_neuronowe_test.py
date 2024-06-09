@@ -383,20 +383,36 @@ class COPKMeans:
     
 
 
+
 def get_part_labels(dataset):
     # Lista do przechowywania wszystkich etykiet
     part_labels = []
 
-    # Iteracja przez cały zbiór danych i zbieranie etykiet z 1/4 danych (500)
-    for i in range(len(dataset)-1505):
-        _, label = dataset[i]
-        part_labels.append(label.item())
-    for _ in range(1505):
-        part_labels.append(-1)
+    # Iteracja przez cały zbiór danych i zbieranie etykiet z 1/5 danych 
+    # derma
+    # labeled_data_count = 100
+    # unlabeled_data_count = 401
+    # blood
+    # labeled_data_count = 171
+    # unlabeled_data_count = 684
+    # path
+    labeled_data_count = 359
+    unlabeled_data_count = 1436
+    total_count = labeled_data_count + unlabeled_data_count
+
+    for i in range(0, len(dataset), total_count):
+        # Dodanie etykietowanych danych
+        for j in range(i, min(i + labeled_data_count, len(dataset))):
+            _, label = dataset[j]
+            part_labels.append(label.item())
+        
+        # Dodanie nieetykietowanych danych
+        for j in range(i + labeled_data_count, min(i + total_count, len(dataset))):
+            part_labels.append(-1)
+    
     print(len(part_labels))
-
-
     return part_labels
+
 
 
 def get_all_labels(dataset):
@@ -447,16 +463,22 @@ def calculate_metrics(y_true, y_pred):
 
 
 # Przygotowanie danych
-train_dataset = prepare_train_dataset('dermamnist')
-test_dataset = prepare_test_dataset('dermamnist')
+
+# data_ = 'dermamnist' 
+# data_ = 'bloodmnist' 
+data_ = 'pathmnist' 
+
+
+train_dataset = prepare_train_dataset(data_)
+test_dataset = prepare_test_dataset(data_)
 
 # # Stworzenie modelu
-model = ResNet(num_classes=len(INFO['dermamnist']['label']))
+model = ResNet(num_classes=len(INFO[data_]['label']))
 
 # Trening modelu
-model = train_ResNet(train_dataset, 'dermamnist', BATCH_SIZE=128, NUM_EPOCHS=2, lr=0.001)
+model = train_ResNet(train_dataset, data_, BATCH_SIZE=128, NUM_EPOCHS=9, lr=0.001)
 
-outputs = test('test', model,train_dataset, test_dataset, 'dermamnist', BATCH_SIZE=64) 
+outputs = test('test', model,train_dataset, test_dataset, data_, BATCH_SIZE=64) 
 
 # stworzenie listy zawierajacej wektory cech po 512 dla kazdego wektora na liscie, ilosć wektorów odpowiada iloscią próbek
 flattened_data = outputs.reshape(outputs.shape[0], -1)
@@ -473,7 +495,6 @@ flattened_data_numpy = flattened_data.detach().cpu().numpy()  # Konwersja tensor
 test_labels = get_part_labels(test_dataset)
 
 all_labels = get_all_labels(test_dataset)
-
 
 
 # Generowanie macierzy ograniczeń
@@ -498,7 +519,7 @@ print(f"Liczba 1: {num_ones}")
 print(f"Liczba -1: {num_neg_ones}")
 
 # # Utwórzenie i dopasowanie model COPKMeans
-copkmeans = COPKMeans(n_clusters=7)  # Utwórz instancję algorytmu COPKMeans
+copkmeans = COPKMeans(n_clusters=9)  # Utwórz instancję algorytmu COPKMeans   7,8,9
 copkmeans.fit(flattened_data_numpy,const_matrix)  # Dopasuj model do danych
 
 
@@ -513,18 +534,106 @@ print(len(all_labels))
 
 predicted_labels = copkmeans.labels_
 
-print("Predykcja")
-for label in predicted_labels:
-    print(label, end=" ")
-print("Poprawne") 
-for label in all_labels:
-    print(label, end=" ")
+# print("Predykcja")
+# for label in predicted_labels:
+#     print(label, end=" ")
+# print("Poprawne") 
+# for label in all_labels:
+#     print(label, end=" ")
 
 # Obliczenie dokładności
 accuracy = calculate_metrics(all_labels, predicted_labels)
 
 print(f"Accuracy: {accuracy}")
 
+ari = adjusted_rand_score(all_labels, predicted_labels)
+print(f"Adjusted Rand Index: {ari}")
+
+
+
+# COPK .........................................................................................................
+
+print("\nCOPKMeans bez ograniczen\n")
+
+
+# Podział zbioru testowego na cztery części
+X_test_splits = np.array_split(flattened_data_numpy, 4)
+y_test_splits = np.array_split(all_labels, 4)
+y_test_data = np.array_split(test_labels, 4)
+
+# Generowanie macierzy ograniczeń dla każdego podzbioru i obliczanie metryk
+for i in range(4):
+    X_part = X_test_splits[i]
+    y_part_true = y_test_splits[i]
+    y_part_data = y_test_data[i]
+    
+    
+    # Generowanie braku macierzy ograniczeń dla części zbioru testowego
+    
+    const_matrix_part = np.zeros((len(X_part), len(X_part)))
+    
+    
+    # Dopasowanie modelu COPKMeans do części zbioru testowego
+    copkmeans_part = COPKMeans(n_clusters=9)
+    copkmeans_part.fit(X_part, const_matrix_part)
+    
+    y_part_pred = copkmeans_part.labels_
+    
+    # Wyświetlenie ilości elementów, etykiet wzorcowych oraz predykcyjnych dla części zbioru testowego
+    print(f"Część {i+1}:")
+    print(f"  Liczba elementów: {len(X_part)}")
+    print(f"  Liczba etykiet wzorcowych: {len(y_part_true)}")
+    print(f"  Liczba etykiet predykcyjnych: {len(y_part_pred)}")
+    
+    # Obliczenie metryk dla części zbioru testowego
+    ari_part = adjusted_rand_score(y_part_true, y_part_pred)
+    
+    print(f"  Adjusted Rand Index: {ari_part}")
+
+
+print("\nCOPKMeans z ograniczeniami\n")
+
+# Podział zbioru testowego na cztery części
+X_test_splits = np.array_split(flattened_data_numpy, 4)
+y_test_splits = np.array_split(all_labels, 4)
+y_test_data = np.array_split(test_labels, 4)
+
+# Generowanie macierzy ograniczeń dla każdego podzbioru i obliczanie metryk
+for i in range(4):
+    X_part = X_test_splits[i]
+    y_part_true = y_test_splits[i]
+    y_part_data = y_test_data[i]
+    
+    
+    # Generowanie macierzy ograniczeń dla części zbioru testowego
+    const_matrix_part = create_constraint_matrix(y_part_data)
+    
+    num_zeros = np.count_nonzero(const_matrix_part == 0)
+    num_ones = np.count_nonzero(const_matrix_part == 1)
+    num_neg_ones = np.count_nonzero(const_matrix_part == -1)
+
+    print(f"Liczba 0: {num_zeros}")
+    print(f"Liczba 1: {num_ones}")
+    print(f"Liczba -1: {num_neg_ones}")
+    
+
+    
+    # Dopasowanie modelu COPKMeans do części zbioru testowego
+    copkmeans_part = COPKMeans(n_clusters=9)
+    copkmeans_part.fit(X_part, const_matrix_part)
+    
+    y_part_pred = copkmeans_part.labels_
+    
+    # Wyświetlenie ilości elementów, etykiet wzorcowych oraz predykcyjnych dla części zbioru testowego
+    print(f"Część {i+1}:")
+    print(f"  Liczba elementów: {len(X_part)}")
+    print(f"  Liczba etykiet wzorcowych: {len(y_part_true)}")
+    print(f"  Liczba etykiet predykcyjnych: {len(y_part_pred)}")
+    
+    # Obliczenie metryk dla części zbioru testowego
+    ari_part = adjusted_rand_score(y_part_true, y_part_pred)
+    
+    print(f"  Adjusted Rand Index: {ari_part}")
 
 
 
@@ -600,5 +709,105 @@ class PCKMeans:
     
     
     
+
+
+
+
+
+# PCK .........................................................................................................
+
+print("\nPCKMeans bez ograniczen\n")
+
+
+# Podział zbioru testowego na cztery części
+X_test_splits = np.array_split(flattened_data_numpy, 4)
+y_test_splits = np.array_split(all_labels, 4)
+y_test_data = np.array_split(test_labels, 4)
+
+# Generowanie macierzy ograniczeń dla każdego podzbioru i obliczanie metryk
+for i in range(4):
+    X_part = X_test_splits[i]
+    y_part_true = y_test_splits[i]
+    y_part_data = y_test_data[i]
+    
+    
+    # Generowanie braku macierzy ograniczeń dla części zbioru testowego
+    
+    const_matrix_part = np.zeros((len(X_part), len(X_part)))
+    
+    
+    # Dopasowanie modelu pcPKMeans do części zbioru testowego
+    pckkmeans_part = PCKMeans(n_clusters=9)
+    pckkmeans_part.fit(X_part, const_matrix_part)
+    
+    y_part_pred = pckkmeans_part.labels_
+    
+    # Wyświetlenie ilości elementów, etykiet wzorcowych oraz predykcyjnych dla części zbioru testowego
+    print(f"Część {i+1}:")
+    print(f"  Liczba elementów: {len(X_part)}")
+    print(f"  Liczba etykiet wzorcowych: {len(y_part_true)}")
+    print(f"  Liczba etykiet predykcyjnych: {len(y_part_pred)}")
+    
+    # Obliczenie metryk dla części zbioru testowego
+    ari_part = adjusted_rand_score(y_part_true, y_part_pred)
+    
+    print(f"  Adjusted Rand Index: {ari_part}")
+
+
+print("\nPCKMeans z ograniczeniami\n")
+
+# Podział zbioru testowego na cztery części
+X_test_splits = np.array_split(flattened_data_numpy, 4)
+y_test_splits = np.array_split(all_labels, 4)
+y_test_data = np.array_split(test_labels, 4)
+
+# Generowanie macierzy ograniczeń dla każdego podzbioru i obliczanie metryk
+for i in range(4):
+    X_part = X_test_splits[i]
+    y_part_true = y_test_splits[i]
+    y_part_data = y_test_data[i]
+    
+    
+    # Generowanie macierzy ograniczeń dla części zbioru testowego
+    const_matrix_part = create_constraint_matrix(y_part_data)
+    
+    num_zeros = np.count_nonzero(const_matrix_part == 0)
+    num_ones = np.count_nonzero(const_matrix_part == 1)
+    num_neg_ones = np.count_nonzero(const_matrix_part == -1)
+
+    print(f"Liczba 0: {num_zeros}")
+    print(f"Liczba 1: {num_ones}")
+    print(f"Liczba -1: {num_neg_ones}")
+    
+
+    
+    # Dopasowanie modelu pcKMeans do części zbioru testowego
+    pckkmeans_part = PCKMeans(n_clusters=9)
+    pckkmeans_part.fit(X_part, const_matrix_part)
+    
+    y_part_pred = pckkmeans_part.labels_
+    
+    # Wyświetlenie ilości elementów, etykiet wzorcowych oraz predykcyjnych dla części zbioru testowego
+    print(f"Część {i+1}:")
+    print(f"  Liczba elementów: {len(X_part)}")
+    print(f"  Liczba etykiet wzorcowych: {len(y_part_true)}")
+    print(f"  Liczba etykiet predykcyjnych: {len(y_part_pred)}")
+    
+    # Obliczenie metryk dla części zbioru testowego
+    ari_part = adjusted_rand_score(y_part_true, y_part_pred)
+   
+    print(f"  Adjusted Rand Index: {ari_part}")
+
+
+
+
+
+
+
+
+
+
+
+
 
 
